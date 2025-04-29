@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>न्यायग्रन्थाः - Final Textual Tree</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: 'Noto Sans Devanagari', sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 10px;
+    }
+
+    svg {
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      display: block;
+      margin: auto;
+    }
+
+    .link {
+      fill: none;
+      stroke: #aaa;
+      stroke-width: 1.5px;
+    }
+
+    .link-label {
+      font-size: 12px;
+      fill: #555;
+      text-anchor: middle;
+    }
+
+    .node circle.main {
+      fill: #555;
+    }
+
+    .node circle.expand-button {
+      fill: red;
+      cursor: pointer;
+    }
+
+    .node text {
+      font-size: 15px;
+    }
+
+    .expandable {
+      fill: maroon;
+      font-weight: bold;
+    }
+
+    .clickable {
+      fill: blue;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<svg></svg>
+
+<script>
+// Define tree data
+const data = {
+  name: "न्यायग्रन्थाः",
+  children: [
+    {
+      name: "न्यायसूत्रभाष्यम्",
+      children: [
+        { name: "📖 न्यायसूत्राणि", link: "#", relation: "Source Text" },
+        { name: "📖 वार्तिकम्", link: "#", relation: "Commentary" },
+        { name: "📖 टीका", link: "#", relation: "Sub-commentary" }
+      ]
+    },
+    {
+      name: "तत्त्वचिन्तामणिः",
+      children: [
+        { name: "📖 शब्दखण्डः", link: "#", relation: "Section" },
+        { name: "📖 सप्तदशखण्डः", link: "#", relation: "Section" },
+        { name: "📖 आर्षखण्डः", link: "#", relation: "Section" }
+      ]
+    },
+    {
+      name: "तर्कसङ्ग्रहः",
+      children: [
+        { name: "📖 प्रस्तावना", link: "#", relation: "Introduction" },
+        { name: "📖 सप्तपदार्थ", link: "#", relation: "Core Concepts" },
+        {
+          name: "📖 दृष्टान्तखण्डः",
+          relation: "Examples Section",
+          children: [
+            { name: "📖 दीपिका टीका", link: "#", relation: "Commentary" }
+          ]
+        },
+        { name: "📖 न्यायदर्शनम्", link: "#", relation: "Translation" }
+      ]
+    }
+  ]
+};
+
+const margin = { top: 40, right: 120, bottom: 40, left: 120 };
+
+const svg = d3.select("svg");
+
+const gLink = svg.append("g")
+  .attr("fill", "none")
+  .attr("stroke", "#555")
+  .attr("stroke-opacity", 0.4)
+  .attr("stroke-width", 1.5);
+
+const gNode = svg.append("g");
+
+let treeLayout = d3.tree();
+
+let root = d3.hierarchy(data, d => d.children);
+
+// Collapse all
+root.children.forEach(collapse);
+
+update(root);
+
+function update(source) {
+  const nodes = root.descendants();
+  const links = root.links();
+
+  const dx = 40; // vertical gap
+  const dy = 200; // horizontal gap
+  treeLayout.nodeSize([dx, dy]);
+  treeLayout(root);
+
+  const left = root.leaves().reduce((acc, d) => Math.min(acc, d.x), root.x);
+  const right = root.leaves().reduce((acc, d) => Math.max(acc, d.x), root.x);
+  const height = right - left + margin.top + margin.bottom;
+  const width = d3.max(nodes, d => d.y) + margin.left + margin.right;
+
+  svg
+    .attr("viewBox", [0, 0, width, height])
+    .attr("width", width)
+    .attr("height", height);
+
+  // Update links
+  const link = gLink.selectAll("path")
+    .data(links, d => d.target.data.name);
+
+  link.join("path")
+    .transition()
+    .attr("d", d3.linkHorizontal()
+      .x(d => d.y + margin.left)
+      .y(d => d.x - left + margin.top)
+    );
+
+  // Add link labels
+  const linkLabel = svg.selectAll(".link-label")
+    .data(links, d => d.target.data.name);
+
+  linkLabel.join("text")
+    .attr("class", "link-label")
+    .attr("x", d => (d.source.y + d.target.y)/2 + margin.left)
+    .attr("y", d => (d.source.x + d.target.x)/2 - left + margin.top - 5)
+    .text(d => d.target.data.relation ? d.target.data.relation : "")
+    .attr("pointer-events", "none"); // labels don't capture mouse
+
+  // Update nodes
+  const node = gNode.selectAll("g")
+    .data(nodes, d => d.data.name);
+
+  const nodeEnter = node.join("g")
+    .attr("transform", d => `translate(${d.y + margin.left},${d.x - left + margin.top})`);
+
+  // Red button for expandable nodes
+  nodeEnter.filter(d => d._children || d.children)
+    .append("circle")
+    .attr("class", "expand-button")
+    .attr("r", 6)
+    .attr("cx", -15)
+    .attr("cy", 0)
+    .on("click", (event, d) => {
+      d.children = d.children ? null : d._children;
+      d._children = d.children ? null : d._children;
+      update(d);
+      event.stopPropagation();
+    });
+
+  nodeEnter.append("circle")
+    .attr("class", "main")
+    .attr("r", 4)
+    .attr("fill", d => (d._children || d.children) ? "#555" : "#999");
+
+  nodeEnter.append("text")
+    .attr("dy", "0.31em")
+    .attr("x", 10)
+    .attr("text-anchor", "start")
+    .attr("class", d => {
+      if (d._children || d.children) return "expandable";
+      if (d.data.link) return "clickable";
+      return "";
+    })
+    .text(d => d.data.name)
+    .on("click", (event, d) => {
+      if (d.data.link) {
+        window.open(d.data.link, "_blank");
+        event.stopPropagation();
+      }
+    });
+}
+
+function collapse(d) {
+  if (d.children) {
+    d._children = d.children;
+    d.children = null;
+    d._children.forEach(collapse);
+  }
+}
+</script>
+
+</body>
+</html>
