@@ -1,1 +1,1 @@
-# textual-tree-vaisheshika
+# textual-tree for Vaiśeṣika Texts
